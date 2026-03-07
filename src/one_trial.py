@@ -15,6 +15,8 @@ from src.utils.utils import (
 from src.personality_bo_utils import evaluate_query
 
 torch.set_default_dtype(torch.float64)  # double precision for BoTorch
+from botorch.acquisition.monte_carlo import qExpectedImprovement
+from botorch.acquisition.objective import GenericMCObjective
 
 # -------------------------------
 # Runs a single trial of personality PBMO
@@ -82,7 +84,9 @@ def one_trial(
             algo=algo,
             seed=trial,
         )
+        responses = responses.unsqueeze(0)
         t0 = time.time()
+        print("Queries shape in one_trial",queries.shape)
         model = fit_model(
             queries,
             utility_vals,
@@ -102,26 +106,72 @@ def one_trial(
         print(f"Problem: {problem} | Algo: {algo} | Trial: {trial} | Iteration: {iteration}")
 
         # --- Suggest new queries (batch-aware) ---
+        # --- Create acquisition function ---
+        # --- Create objective ---
+        objective = GenericMCObjective(lambda Y: Y.mean(dim=-1))
+
+        # --- Best observed value ---
+        best_f = utility_vals.mean(dim=-1).max()
+
+# --- Acquisition function ---
+        acq_func = qExpectedImprovement(
+            model=model,
+            best_f=best_f,
+            objective=objective,
+            )
+
+# --- Optimize acquisition ---
         t0 = time.time()
         new_query = optimize_acqf_and_get_suggested_query(
-            acq_func=algo_params.get("acq_func"),  # make sure algo_params has the acquisition function
-            bounds=torch.tensor([[0.0, 0.0, 0.0], [len(utility_func.__globals__['PROMPT_NAMES'])-1, 1.0, 1.0]], dtype=torch.float64),
-            batch_size=batch_size,
-            num_restarts=5,
-            raw_samples=20,
+        acq_func=acq_func,
+        bounds=torch.tensor([[0.0, 0.0, 0.0], [len(utility_func.__globals__['PROMPT_NAMES'])-1, 1.0, 1.0]], dtype=torch.float64),
+        batch_size=batch_size,
+        num_restarts=5,
+        raw_samples=20,
         )
+
+        # take best candidate batch
+        #new_query = new_query[0] 
+        # Fix dimension
+        print("Debug New Query: ",new_query)
+        new_query = new_query.unsqueeze(0)
+        print("Debug New Query after unsqueeze: ",new_query)
         t1 = time.time()
         acquisition_time = t1 - t0
         runtimes.append(acquisition_time + model_training_time)
 
         # --- Evaluate query via personality PBMO ---
-        new_utility_vals = utility_func(new_query)
+        # evaluate
+        new_utility_vals = utility_func(new_query.squeeze(0))
+        new_utility_vals = new_utility_vals.unsqueeze(0)
         new_responses = new_utility_vals.clone()  # deterministic here
 
         # --- Update dataset ---
-        queries = torch.cat((queries, new_query), dim=0)
-        utility_vals = torch.cat((utility_vals, new_utility_vals), dim=0)
-        responses = torch.cat((responses, new_responses), dim=0)
+        print("queries shape:", queries.shape)
+        print("new_query shape:", new_query.shape)
+
+        print("responses shape:", responses.shape)
+        print("new_responses shape:", new_responses.shape)
+
+        print("utility_vals shape:", utility_vals.shape)
+        print("new_utility_vals shape:", new_utility_vals.shape)
+# --- Flatten batch dimension to match SDTS expected input ---
+        queries_flat = queries.reshape(-1, queries.shape[-1])
+        new_query_flat = new_query.reshape(-1, new_query.shape[-1])
+        queries = torch.cat((queries_flat, new_query_flat), dim=0)
+
+        utility_vals_flat = utility_vals.reshape(-1, utility_vals.shape[-1])
+        new_utility_vals_flat = new_utility_vals.reshape(-1, new_utility_vals.shape[-1])
+        utility_vals = torch.cat((utility_vals_flat, new_utility_vals_flat), dim=0)
+
+        responses_flat = responses.reshape(-1, responses.shape[-1])
+        new_responses_flat = new_responses.reshape(-1, new_responses.shape[-1])
+        responses = torch.cat((responses_flat, new_responses_flat), dim=0)
+
+
+        print("Query before model refit: ",queries.shape)
+        print("Utility Vals before model refit: ",utility_vals.shape)
+
 
         # --- Refit model ---
         t0 = time.time()

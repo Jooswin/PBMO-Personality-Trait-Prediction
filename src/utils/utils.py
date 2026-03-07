@@ -47,12 +47,17 @@ def fit_model(
             else:
                 models = []
                 num_attributes = responses.shape[-1]
+                print("Test Inside fit_model 0")
+                print("queries shape:", queries.shape)
                 queries_reshaped = queries.reshape(
                     queries.shape[0] * queries.shape[1], queries.shape[2]
                 ).to(dtype=torch.float64)
+                print("Test Inside fit_model 1")
                 utility_vals_reshaped = utility_vals.reshape(
                     utility_vals.shape[0] * utility_vals.shape[1], utility_vals.shape[2]
                 ).to(dtype=torch.float64)
+
+                print("Test inside fit_model 2")
 
                 for j in range(num_attributes):
                     if obs_attributes[j]:
@@ -84,6 +89,7 @@ def generate_random_queries(num_queries, batch_size, input_dim, seed=None) -> Te
         old_state = torch.random.get_rng_state()
         torch.manual_seed(seed)
     queries = torch.rand([num_queries, batch_size, input_dim], dtype=torch.float64)
+    print("Debug Inside generate_random_queries")
     if seed is not None:
         torch.random.set_rng_state(old_state)
     return queries
@@ -93,6 +99,7 @@ def get_utility_vals(queries, utility_func) -> Tensor:
     queries_2d = queries.reshape(queries.shape[0] * queries.shape[1], queries.shape[2])
     utility_vals = utility_func(queries_2d).to(dtype=torch.float64)
     utility_vals = utility_vals.reshape(queries.shape[0], queries.shape[1], utility_vals.shape[1])
+    print("Debug inside get_utility_vals()")
     return utility_vals
 
 
@@ -128,6 +135,7 @@ def generate_responses(utility_vals, noise_type, noise_level, algo):
         responses = torch.argmax(chebyshev_scalarization(corrupted_vals), dim=-1)
     else:
         responses = torch.argmax(corrupted_vals, dim=-2)
+        print("Debug Inside generate_responses()")
     return responses
 
 
