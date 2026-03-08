@@ -96,8 +96,14 @@ def generate_random_queries(num_queries, batch_size, input_dim, seed=None) -> Te
 
 
 def get_utility_vals(queries, utility_func) -> Tensor:
+    print("Queries shape inside get_utility_vals: ",queries.shape)
+    #print("Queries in get_utility_vals: ",queries)
     queries_2d = queries.reshape(queries.shape[0] * queries.shape[1], queries.shape[2])
+    print("2D Query shape in get_utility_vals: ",queries_2d.shape)
+    print("2D Queries in get_utility_vals: ",queries_2d)
+    
     utility_vals = utility_func(queries_2d).to(dtype=torch.float64)
+    print("Utility val shape inside utility val: ",utility_vals.shape)
     utility_vals = utility_vals.reshape(queries.shape[0], queries.shape[1], utility_vals.shape[1])
     print("Debug inside get_utility_vals()")
     return utility_vals
@@ -140,6 +146,7 @@ def generate_responses(utility_vals, noise_type, noise_level, algo):
 
 
 def generate_initial_data(num_queries, batch_size, input_dim, utility_func, comp_noise_type, comp_noise, algo, seed=None):
+    print("Inside generate_initial_data")
     queries = generate_random_queries(num_queries, batch_size, input_dim, seed)
     utility_vals = get_utility_vals(queries, utility_func)
     responses = generate_responses(utility_vals, comp_noise_type, comp_noise, algo)
@@ -173,7 +180,7 @@ def optimize_acqf_and_get_suggested_query(
             "nonnegative": False,
             "method": "L-BFGS-B",
         },
-        return_best_only=False,
+        return_best_only=True,
     )
     candidates = candidates.detach().to(dtype=torch.float64)
     return candidates
