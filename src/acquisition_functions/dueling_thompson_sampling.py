@@ -15,8 +15,6 @@ from src.utils.get_preferential_gp_sample import get_preferential_gp_rff_sample
 from src.utils.utils import optimize_acqf_and_get_suggested_query
 
 
-gumbel = None
-
 # generates a (scalarized) dueling thompson sampling query
 def gen_dueling_thompson_sampling_query(
     model,
@@ -31,8 +29,6 @@ def gen_dueling_thompson_sampling_query(
     query = []
     # this scalarizes a multi-output sample (required by SDTS)
     if scalarize:
-        if acquisition_function is None:   #check for time being
-            acquisition_function = PosteriorMean(model=model)  #check for time being 
         mean_train_inputs = model.posterior(model.train_inputs[0][0]).mean.detach()
         if fix_scalarization:
             if scalarization == "chebyshev":
